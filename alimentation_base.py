@@ -14,7 +14,7 @@ DB_USER = "pgis"
 DB_PASS = "pgis"
 DB_NAME = "DB_MaisonDuDroit"
 
-DOSSIER_EXCEL = r"H:\SAE501-2\projet\sae501\data_entretien"
+DOSSIER_EXCEL = r"data_entretien"
 ANNEE_FICHIERS = 2024
 
 # =========================
