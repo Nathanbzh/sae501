@@ -17,3 +17,5 @@ entretien_export.csv
 __pycache__
 .env
 .venv
+test_saisie.py
+logo.png
