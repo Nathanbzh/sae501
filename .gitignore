@@ -16,3 +16,5 @@ data_entretien
 entretien_export.csv
 .env
 .venv
+__pycache__
+.coverage
