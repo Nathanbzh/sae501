@@ -2,19 +2,19 @@
 import psycopg2
 import streamlit as st
 import datetime
+import os
+from dotenv import load_dotenv
 
-# --- CONFIGURATION LOCALE ---
-LOCAL_DB_CONFIG = {
-    "host": "localhost",
-    "port": "5437",
-    "database": "DB_MaisonDuDroit",
-    "user": "pgis",
-    "password": "pgis",
-    "options": "-c client_encoding=WIN1252"
-}
+# Charge les variables si on exécute hors de Streamlit
+load_dotenv()
 
 def get_db_connection():
+    """
+    Tente de se connecter via les secrets Streamlit (Cloud/Prod),
+    sinon bascule sur les variables d'environnement locales (.env).
+    """
     try:
+        # 1. Essai via Streamlit Secrets
         return psycopg2.connect(
             host=st.secrets["postgres"]["host"],
             port=st.secrets["postgres"]["port"],
@@ -24,7 +24,19 @@ def get_db_connection():
             options="-c client_encoding=WIN1252"
         )
     except (FileNotFoundError, KeyError, AttributeError):
-        return psycopg2.connect(**LOCAL_DB_CONFIG)
+        # 2. Fallback via .env (Local Script / Tests)
+        try:
+            return psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=os.getenv("DB_PORT", "5437"),
+                database=os.getenv("DB_NAME", "DB_MaisonDuDroit"),
+                user=os.getenv("DB_USER", "pgis"),
+                password=os.getenv("DB_PASS", "pgis"),
+                options="-c client_encoding=WIN1252"
+            )
+        except Exception as e:
+            st.error(f"❌ Impossible de se connecter à la base : {e}")
+            raise e
 
 def get_form_config():
     """Récupère la config pour la table principale ENTRETIEN"""
@@ -69,7 +81,8 @@ def get_form_config():
                 config.append(field_info)
         return config
     except Exception as e:
-        st.error(f"Erreur config : {e}")
+        # En mode script, st.error n'affiche rien, on print
+        print(f"Erreur config : {e}")
         return []
     finally:
         conn.close()
@@ -92,7 +105,7 @@ def get_options_for_table(table_name, column_pos=3):
                 options[lib] = code
         return options
     except Exception as e:
-        st.error(f"Erreur options {table_name}: {e}")
+        print(f"Erreur options {table_name}: {e}")
         return {}
     finally:
         conn.close()

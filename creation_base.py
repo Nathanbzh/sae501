@@ -1,19 +1,26 @@
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 import os
+from dotenv import load_dotenv
 
-# --- CONFIGURATION ---
-DB_HOST = "localhost"
-DB_PORT = "5437"           
-DB_USER = "pgis"
-DB_PASS = "pgis"
-DB_NAME = "DB_MaisonDuDroit"
-CSV_PATH = r"H:/Projetdroit/tentative.csv"
+# Charge les variables du fichier .env
+load_dotenv()
 
-# Chemin où exporter les fichiers CSV générés
-OUTPUT_DIR = r"metadata" 
+# --- CONFIGURATION SÉCURISÉE ---
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_NAME = os.getenv("DB_NAME")
 
-# --- LE SCRIPT SQL CORRIGÉ (Avec TRIM() pour éviter l'erreur de longueur) ---
+# Utilisation d'un chemin relatif pour la portabilité
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Si le fichier CSV est dans le dossier 'data' du projet
+CSV_PATH = os.path.join(BASE_DIR, "data", "tentative.csv") 
+OUTPUT_DIR = os.path.join(BASE_DIR, "metadata")
+
+# --- LE SCRIPT SQL ---
+# (Le reste du contenu SQL reste identique à votre version)
 SQL_DDL = """
 -- 1. NETTOYAGE PREALABLE
 DROP TABLE IF EXISTS SOLUTION CASCADE;
