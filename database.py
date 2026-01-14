@@ -5,30 +5,39 @@ import streamlit as st
 import datetime
 import pandas as pd
 from sqlalchemy import create_engine
+import os
+from dotenv import load_dotenv
 
-# --- CONFIGURATION LOCALE ---
+# Charge les variables d'environnement (pour le mode local)
+load_dotenv()
+
+# --- CONFIGURATION LOCALE SÉCURISÉE ---
+# On utilise os.getenv pour récupérer les valeurs du fichier .env
+# Les valeurs par défaut (ex: "localhost") ne sont là qu'en cas d'oubli du .env
 LOCAL_DB_CONFIG = {
-    "host": "localhost",
-    "port": "5437", # Vérifiez votre port (5432 ou 5437)
-    "database": "DB_MaisonDuDroit",
-    "user": "pgis",
-    "password": "pgis",
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
+    "database": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASS"),
+    "options": "-c client_encoding=WIN1252"
 }
 
 def get_db_url():
     """Génère l'URL de connexion pour SQLAlchemy"""
     try:
-        # Configuration Streamlit Cloud (secrets)
+        # 1. Essai Configuration Streamlit Cloud (secrets.toml)
         creds = st.secrets["postgres"]
         return f"postgresql+psycopg2://{creds['user']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
     except (FileNotFoundError, KeyError, AttributeError):
-        # Configuration Locale
+        # 2. Fallback Configuration Locale (.env)
         c = LOCAL_DB_CONFIG
         return f"postgresql+psycopg2://{c['user']}:{c['password']}@{c['host']}:{c['port']}/{c['database']}"
 
 def get_db_connection():
     """Connexion Psycopg2 classique (pour INSERT/UPDATE et lecture métadonnées)"""
     try:
+        # 1. Essai Configuration Streamlit Cloud
         return psycopg2.connect(
             host=st.secrets["postgres"]["host"],
             port=st.secrets["postgres"]["port"],
@@ -38,7 +47,12 @@ def get_db_connection():
             options="-c client_encoding=WIN1252"
         )
     except (FileNotFoundError, KeyError, AttributeError):
-        return psycopg2.connect(**LOCAL_DB_CONFIG, options="-c client_encoding=WIN1252")
+        # 2. Fallback Configuration Locale
+        try:
+            return psycopg2.connect(**LOCAL_DB_CONFIG)
+        except Exception as e:
+            st.error(f"❌ Erreur de connexion (Locale) : {e}")
+            raise e
 
 def get_pandas_data(query, params=None):
     """
