@@ -3,235 +3,195 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import psycopg2
+import sys
+import os
 
-# --- 1. CONFIGURATION ET CONNEXION ---
+# Import de la bdd
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from database import get_db_connection, get_translation_dictionary
 
-# ⚠️ Dictionnaire de correspondance (Doit être IDENTIQUE à celui du formulaire)
-TRANSCO = {
-    "mode": {
-        1: "RDV", 2: "Sans RDV", 3: "Téléphonique", 4: "Courrier", 
-        5: "Mail", 6: "Autre", 99: "Non renseigné"
-    },
-    "duree": {
-        1: "- 15 min.", 2: "15 à 30 min", 3: "30 à 45 min", 
-        4: "45 à 60 min", 5: "+ de 60 min"
-    },
-    "sexe": {
-        1: "Homme", 2: "Femme", 3: "Couple", 4: "Professionnel"
-    },
-    "age": {
-        1: "-18 ans", 2: "18-25 ans", 3: "26-40 ans", 
-        4: "41-60 ans", 5: "+ 60 ans"
-    },
-    "vient_pr": {
-        1: "Soi", 2: "Conjoint", 3: "Parent", 4: "Enfant", 
-        5: "Personne morale", 6: "Autre"
-    },
-    "sit_fam": {
-        1: "Célibataire", 2: "Concubin", 3: "Pacsé", 4: "Marié", 
-        5: "Séparé/divorcé", 6: "Veuf/ve", 99: "Non renseigné"
-    },
-    "enfant": {
-        0: "Sans enf. à charge", 1: "Avec enf. en garde alternée", 
-        2: "Avec enf. en garde principale", 3: "Avec enf. en droit de visite/hbgt", 
-        4: "Parent isolé", 5: "Séparés sous le même toit", 99: "Non renseigné"
-    },
-    "profession": {
-        1: "Scolaire/étudiant/formation", 2: "Pêcheur/agriculteur", 
-        3: "Chef d'entreprise", 4: "Libéral", 5: "Secteur santé/social", 
-        6: "Militaire", 7: "Employé", 8: "Ouvrier", 9: "Cadre", 
-        10: "Retraité", 11: "En recherche d'emploi", 12: "Sans profession", 
-        99: "Non renseigné"
-    },
-    "ress": {
-        1: "Salaire", 2: "Revenus pro.", 3: "Retraite/réversion", 
-        4: "Allocations chômage", 5: "RSA", 6: "AAH/invalidité", 
-        7: "ASS", 8: "Bourse d'études.", 9: "Sans revenu"
-    }
-}
+st.set_page_config(layout="wide", page_title="Analyse Graphique")
 
-def init_connection():
-    """Initialise la connexion à PostgreSQL."""
-    try:
-        return psycopg2.connect(
-            host=st.secrets["postgres"]["host"],
-            port=st.secrets["postgres"]["port"],
-            database=st.secrets["postgres"]["database"],
-            user=st.secrets["postgres"]["user"],
-            password=st.secrets["postgres"]["password"],
-            options="-c client_encoding=WIN1252"
-        )
-    except Exception as e:
-        st.error(f"❌ Erreur de connexion BDD : {e}")
-        return None
-
-@st.cache_data(ttl=60) # Mise en cache des données pour 60 secondes
-def load_data_from_db():
-    """Charge les données depuis la base et applique le décodage."""
-    conn = init_connection()
+# Fonction mise en cache pour éviter de recharger la BDD à chaque clic
+@st.cache_data(ttl=300)
+def load_and_prep_data():
+    conn = get_db_connection()
     if not conn:
         return pd.DataFrame()
     
     try:
-        # On sélectionne toutes les colonnes utiles
-        query = """
-            SELECT date_ent, mode, duree, sexe, age, vient_pr, sit_fam, enfant, profession, ress 
-            FROM entretien
-        """
+        # On charge toute la table
+        query = "SELECT * FROM ENTRETIEN ORDER BY date_ent"
         df = pd.read_sql(query, conn)
+        
+        # On charge le dictionnaire de traduction
+        transco = get_translation_dictionary()
         conn.close()
 
         if df.empty:
             return df
 
-        # --- TRANSFORMATION DES DONNÉES ---
+        # --- PREPARATION DES DONNEES ---
+        
+        # 1. Noms de colonnes en minuscules
+        df.columns = [c.lower() for c in df.columns]
 
-        # 1. Conversion de la date
-        df['date_ent'] = pd.to_datetime(df['date_ent'])
-        df['Mois'] = df['date_ent'].dt.strftime('%Y-%m') # Création colonne Mois
+        # 2. Gestion des dates
+        if 'date_ent' in df.columns:
+            df['date_ent'] = pd.to_datetime(df['date_ent'])
+            # Création d'une colonne 'Mois' (ex: "2024-01") utile pour les graphiques temporels
+            df['mois'] = df['date_ent'].dt.strftime('%Y-%m')
 
-        # 2. Décodage (Chiffre -> Texte)
-        # On boucle sur chaque colonne du dictionnaire TRANSCO
-        for col_name, mapping in TRANSCO.items():
-            if col_name in df.columns:
-                # On map les valeurs. Les codes inconnus resteront tels quels ou NaN
-                df[col_name] = df[col_name].map(mapping).fillna("Inconnu/Non renseigné")
-
-        # 3. Renommage des colonnes pour l'affichage (Optionnel, pour faire joli)
-        df = df.rename(columns={
-            "mode": "Mode Entretien",
-            "duree": "Durée",
-            "sexe": "Sexe",
-            "age": "Tranche d'âge",
-            "vient_pr": "Vient pour",
-            "sit_fam": "Situation Familiale",
-            "enfant": "Enfants",
-            "profession": "Profession",
-            "ress": "Ressources"
-        })
-
+        # 3. Application des traductions (Codes -> Libellés)
+        for col, mapping in transco.items():
+            if col in df.columns:
+                df[col] = df[col].map(mapping).fillna(df[col])
+        
         return df
 
     except Exception as e:
-        st.error(f"Erreur lors du chargement des données : {e}")
-        if conn: conn.close()
+        st.error(f"Erreur de chargement des données : {e}")
         return pd.DataFrame()
 
+# --- PAGE PRINCIPALE ---
 
-# --- 2. FONCTIONS DE VISUALISATION ---
+st.title("📊 Analyse Graphique Dynamique")
+st.markdown("Explorez les données en choisissant vos filtres et vos variables.")
 
-def create_chart_plotly(df_filtered, chart_type, x_var, y_var=None):
-    """Génère un graphique Plotly."""
+# Chargement
+with st.spinner("Chargement des données..."):
+    df = load_and_prep_data()
+
+if not df.empty:
     
-    if df_filtered.empty:
-        st.warning("Aucune donnée disponible pour les filtres sélectionnés.")
-        return
-
-    # Par défaut, on compte le nombre de lignes (Nombre d'entretiens)
-    # On groupe par la variable X pour avoir les totaux
-    if chart_type in ["Diagramme en Barre", "Nuage de Points", "Diagramme Linéaire"]:
-        data_grouped = df_filtered.groupby(x_var).size().reset_index(name='Nombre d\'entretiens')
+    # --- 1. BARRE LATÉRALE : FILTRES ---
+    st.sidebar.header("🔍 Filtres")
     
-    # --- Génération du Graphique ---
-    
-    if chart_type == "Diagramme en Barre":
-        fig = px.bar(
-            data_grouped, x=x_var, y='Nombre d\'entretiens', 
-            title=f'Répartition par {x_var}', text='Nombre d\'entretiens'
-        )
-        fig.update_traces(textposition='outside') # Affiche le chiffre au dessus de la barre
-
-    elif chart_type == "Diagramme Circulaire":
-        # Pour le camembert, on groupe aussi
-        data_grouped = df_filtered.groupby(x_var).size().reset_index(name='Count')
-        fig = px.pie(
-            data_grouped, names=x_var, values='Count', 
-            title=f'Répartition par {x_var}'
-        )
-
-    elif chart_type == "Diagramme Linéaire (Chronologie)":
-        # Spécifique pour voir l'évolution dans le temps
-        if x_var != 'Mois' and x_var != 'date_ent':
-            st.warning("⚠️ Pour un graphique linéaire, il est conseillé de choisir 'Mois' ou 'date_ent' en Axe X.")
-        
-        data_grouped = df_filtered.groupby(x_var).size().reset_index(name='Nombre d\'entretiens')
-        fig = px.line(
-            data_grouped, x=x_var, y='Nombre d\'entretiens', markers=True,
-            title=f'Évolution temporelle par {x_var}'
-        )
-
-    elif chart_type == "Treemap":
-        # Treemap nécessite souvent deux niveaux, on en ajoute un par défaut si possible
-        path_vars = [x_var]
-        if "Sexe" in df_filtered.columns and x_var != "Sexe":
-            path_vars.append("Sexe") # On ajoute Sexe comme sous-catégorie par défaut
-            
-        fig = px.treemap(
-            df_filtered, path=path_vars, 
-            title=f'Treemap : {x_var}'
-        )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# --- 3. PAGE PRINCIPALE ---
-
-def visualisation_page():
-    st.set_page_config(layout="wide")
-    st.title("📊 Analyse des Données (Base Réelle)")
-    st.markdown("---")
-
-    # 1. Chargement des données
-    with st.spinner("Chargement des données depuis la base PostgreSQL..."):
-        df = load_data_from_db()
-
-    if df.empty:
-        st.info("Aucune donnée trouvée dans la table 'entretien' ou erreur de connexion.")
-        return
-
-    # 2. Paramètres Graphique
-    st.sidebar.header("Paramètres du Graphique")
-
-    chart_type = st.selectbox(
-        "Type de graphique :",
-        ["Diagramme en Barre", "Diagramme Circulaire", "Diagramme Linéaire (Chronologie)", "Treemap"]
-    )
-
-    # Création de la liste des variables disponibles (Catégorielles + Temps)
-    # On exclut les colonnes qui ne sont pas pertinentes pour l'axe X principal
-    available_columns = [c for c in df.columns if c not in ['ress', 'enfant']] # On peut tout garder si on veut
-    available_columns = df.columns.tolist()
-
-    x_var = st.selectbox("Choisissez la variable à analyser (Axe X / Catégorie) :", options=available_columns)
-
-    st.markdown("---")
-
-    # 3. Filtres Dynamiques (Sidebar)
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Filtres Avancés")
-    
+    # Copie du DF pour filtrage progressif
     df_filtered = df.copy()
-
-    # On propose de filtrer sur quelques variables clés
-    filters_cols = ["Mois", "Mode Entretien", "Sexe", "Tranche d'âge"]
     
-    for col in filters_cols:
-        if col in df.columns:
-            unique_vals = df[col].unique()
-            selected = st.sidebar.multiselect(f"Filtrer par {col}", options=unique_vals)
-            if selected:
-                df_filtered = df_filtered[df_filtered[col].isin(selected)]
+    # Liste des colonnes filtrables (on retire les IDs techniques)
+    excluded_cols = ['num', 'date_ent']
+    available_filters = [c for c in df.columns if c not in excluded_cols]
+    
+    # L'utilisateur choisit d'abord SUR QUOI il veut filtrer
+    # Cela évite d'afficher 20 listes déroulantes d'un coup
+    filtres_actifs = st.sidebar.multiselect("Ajouter un filtre sur :", available_filters)
+    
+    # Pour chaque filtre choisi, on affiche les valeurs possibles
+    for col in filtres_actifs:
+        # Récupère les valeurs uniques triées
+        valeurs_uniques = sorted(df[col].astype(str).unique())
+        choix = st.sidebar.multiselect(f"Valeurs pour '{col}'", options=valeurs_uniques)
+        
+        if choix:
+            df_filtered = df_filtered[df_filtered[col].astype(str).isin(choix)]
 
     # Indicateur de volume
-    st.metric(label="Nombre d'entretiens affichés", value=len(df_filtered))
+    st.sidebar.markdown("---")
+    percentage = (len(df_filtered) / len(df)) * 100
+    st.sidebar.metric("Dossiers sélectionnés", f"{len(df_filtered)}", delta=f"{percentage:.1f}% du total")
 
-    # 4. Affichage du Graphique
-    create_chart_plotly(df_filtered, chart_type, x_var)
+    st.markdown("---")
 
-    # 5. Affichage du tableau de données (Optionnel, utile pour vérifier)
-    with st.expander("Voir les données brutes correspondantes"):
+    # --- 2. CONFIGURATION DU GRAPHIQUE ---
+    
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        type_graph = st.selectbox(
+            "1. Type de graphique", 
+            ["Barres (Histogramme)", "Camembert (Secteurs)", "Courbe (Evolution Temporelle)", "Treemap (Hiérarchie)"]
+        )
+    
+    with c2:
+        # Axe X : On exclut 'num'
+        cols_x = [c for c in df.columns if c != 'num']
+        # Sélection par défaut intelligente : 'mois' pour courbe, 'mode' pour les autres
+        idx_default = cols_x.index('mois') if 'mois' in cols_x else 0
+        if type_graph == "Courbe (Evolution Temporelle)" and 'mois' in cols_x:
+            pass # garde idx_default sur mois
+        elif 'mode' in cols_x:
+            try: idx_default = cols_x.index('mode')
+            except: idx_default = 0
+            
+        var_x = st.selectbox("2. Variable principale (Axe X)", cols_x, index=idx_default)
+
+    with c3:
+        # Option de couleur / segmentation
+        cols_color = ["Aucun"] + [c for c in df.columns if c not in ['num', 'date_ent', var_x]]
+        var_color = st.selectbox("3. Segmenter par (Couleur)", cols_color)
+
+    # Argument couleur pour Plotly
+    color_arg = None if var_color == "Aucun" else var_color
+
+    # --- 3. GENERATION DU GRAPHIQUE ---
+    
+    st.markdown("### Résultat")
+    
+    if len(df_filtered) == 0:
+        st.warning("⚠️ Aucun donnée ne correspond aux filtres sélectionnés.")
+    else:
+        # LOGIQUE PLOTLY
+        
+        if type_graph == "Barres (Histogramme)":
+            # On compte les occurrences
+            group_cols = [var_x]
+            if color_arg: group_cols.append(color_arg)
+            
+            data_agg = df_filtered.groupby(group_cols).size().reset_index(name='Nombre')
+            
+            fig = px.bar(
+                data_agg, x=var_x, y='Nombre', color=color_arg,
+                text='Nombre', title=f"Répartition par {var_x}",
+                template="plotly_white"
+            )
+            fig.update_traces(textposition='outside')
+
+        elif type_graph == "Camembert (Secteurs)":
+            # Camembert ne supporte pas vraiment la segmentation couleur secondaire comme les barres
+            # On ignore var_color ou on l'utilise pour définir les secteurs si var_x est vide (cas rare)
+            data_agg = df_filtered.groupby(var_x).size().reset_index(name='Nombre')
+            
+            fig = px.pie(
+                data_agg, names=var_x, values='Nombre',
+                title=f"Répartition par {var_x}",
+                hole=0.4 # Donut chart
+            )
+
+        elif type_graph == "Courbe (Evolution Temporelle)":
+            if var_x not in ['date_ent', 'mois']:
+                st.warning("💡 Conseil : Pour une courbe, choisissez 'date_ent' ou 'mois' en axe X.")
+            
+            group_cols = [var_x]
+            if color_arg: group_cols.append(color_arg)
+            
+            data_agg = df_filtered.groupby(group_cols).size().reset_index(name='Nombre')
+            # Tri important pour que la ligne ne fasse pas des zigzags
+            data_agg = data_agg.sort_values(by=var_x)
+            
+            fig = px.line(
+                data_agg, x=var_x, y='Nombre', color=color_arg,
+                markers=True, title=f"Évolution temporelle par {var_x}"
+            )
+
+        elif type_graph == "Treemap (Hiérarchie)":
+            # Treemap a besoin d'une hiérarchie. On utilise X, et Couleur si défini.
+            path = [var_x]
+            if color_arg: path.append(color_arg)
+            
+            data_agg = df_filtered.groupby(path).size().reset_index(name='Nombre')
+            
+            fig = px.treemap(
+                data_agg, path=path, values='Nombre',
+                title=f"Vue hiérarchique : {var_x}"
+            )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    # --- 4. TABLEAU DES DONNÉES BRUTES DU GRAPHIQUE ---
+    with st.expander("Voir les données brutes associées"):
         st.dataframe(df_filtered, use_container_width=True)
 
-# Lancer la page
-visualisation_page()
+else:
+    st.error("La base de données est vide ou inaccessible.")

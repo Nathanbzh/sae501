@@ -14,3 +14,5 @@ metabase_postgresql_v3.sql
 metabase_postgresql_v4.sql
 data_entretien
 entretien_export.csv
+__pycache__
+.coverage
