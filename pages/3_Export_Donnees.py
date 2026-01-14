@@ -40,10 +40,10 @@ def get_available_months():
     return months
 
 # --- INTERFACE ---
-st.title("📂 Données & Archives")
+st.title("Données & Archives")
 
 # CRÉATION DES ONGLETS
-tab_export, tab_detail = st.tabs(["📊 Export Global (Par Mois)", "🔍 Détail Dossier (Demandes & Solutions)"])
+tab_export, tab_detail = st.tabs(["Export Global (Par Mois)", "Détail Dossier (Demandes & Solutions)"])
 
 # =========================================================
 # ONGLET 1 : EXPORT GLOBAL
@@ -57,7 +57,7 @@ with tab_export:
     if not liste_mois:
         st.warning("Aucune donnée disponible.")
     else:
-        with st.expander("📅 Sélectionner la période", expanded=True):
+        with st.expander("Sélectionner la période", expanded=True):
             selected_months = st.multiselect("Mois :", options=liste_mois)
 
         if selected_months:
@@ -82,7 +82,7 @@ with tab_export:
                         
                         excel_data = to_excel(df)
                         st.download_button(
-                            "📥 Télécharger Excel", 
+                            "Télécharger Excel", 
                             data=excel_data, 
                             file_name="export_entretiens.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -97,7 +97,7 @@ with tab_export:
 # ONGLET 2 : DÉTAIL DOSSIER
 # =========================================================
 with tab_detail:
-    st.markdown("### 🔎 Consultation complète d'un dossier")
+    st.markdown("### Consultation complète d'un dossier")
     
     # 1. Barre de recherche : Liste déroulante + Recherche manuelle
     c1, c2 = st.columns([2, 1])
@@ -130,13 +130,13 @@ with tab_detail:
 
     # 2. Affichage des données
     if selected_num:
-        st.subheader(f"📂 Dossier N° {selected_num}")
+        st.subheader(f"Dossier N° {selected_num}")
         
         # Récupération des 3 tables
         df_ent, df_dem, df_sol = get_dossier_complete_data(selected_num)
         
         if df_ent.empty:
-            st.error(f"❌ Le dossier n°{selected_num} n'existe pas.")
+            st.error(f"Le dossier n°{selected_num} n'existe pas.")
         else:
             # --- A. TABLE ENTRETIEN (Info principale) ---
             # Traduction
@@ -148,7 +148,7 @@ with tab_detail:
                 if col in df_ent.columns:
                     df_ent[col] = df_ent[col].map(mapping).fillna(df_ent[col])
             
-            st.info("👤 **Informations Générales (Table ENTRETIEN)**")
+            st.info("**Informations Générales (Table ENTRETIEN)**")
             st.dataframe(df_ent, use_container_width=True, hide_index=True)
             
             # Préparation des dictionnaires de traduction inversés pour Demande/Solution
@@ -163,7 +163,7 @@ with tab_detail:
 
             # --- B. TABLE DEMANDE ---
             with c_left:
-                st.warning("📋 **Demandes (Table DEMANDE)**")
+                st.warning("**Demandes (Table DEMANDE)**")
                 if not df_dem.empty:
                     df_dem.columns = [c.lower() for c in df_dem.columns]
                     # Traduction de la colonne 'nature'
@@ -176,7 +176,7 @@ with tab_detail:
 
             # --- C. TABLE SOLUTION ---
             with c_right:
-                st.success("✅ **Solutions (Table SOLUTION)**")
+                st.success("**Solutions (Table SOLUTION)**")
                 if not df_sol.empty:
                     df_sol.columns = [c.lower() for c in df_sol.columns]
                     # Traduction de la colonne 'nature'

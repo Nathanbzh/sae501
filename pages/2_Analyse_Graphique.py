@@ -55,7 +55,7 @@ def load_and_prep_data():
 
 # --- PAGE PRINCIPALE ---
 
-st.title("📊 Analyse Graphique Dynamique")
+st.title("Analyse Graphique Dynamique")
 st.markdown("Explorez les données en choisissant vos filtres et vos variables.")
 
 # Chargement
@@ -65,7 +65,7 @@ with st.spinner("Chargement des données..."):
 if not df.empty:
     
     # --- 1. BARRE LATÉRALE : FILTRES ---
-    st.sidebar.header("🔍 Filtres")
+    st.sidebar.header("Filtres")
     
     # Copie du DF pour filtrage progressif
     df_filtered = df.copy()
@@ -130,7 +130,7 @@ if not df.empty:
     st.markdown("### Résultat")
     
     if len(df_filtered) == 0:
-        st.warning("⚠️ Aucun donnée ne correspond aux filtres sélectionnés.")
+        st.warning("Aucun donnée ne correspond aux filtres sélectionnés.")
     else:
         # LOGIQUE PLOTLY
         
@@ -161,7 +161,7 @@ if not df.empty:
 
         elif type_graph == "Courbe (Evolution Temporelle)":
             if var_x not in ['date_ent', 'mois']:
-                st.warning("💡 Conseil : Pour une courbe, choisissez 'date_ent' ou 'mois' en axe X.")
+                st.warning("Conseil : Pour une courbe, choisissez 'date_ent' ou 'mois' en axe X.")
             
             group_cols = [var_x]
             if color_arg: group_cols.append(color_arg)

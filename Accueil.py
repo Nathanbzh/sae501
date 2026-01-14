@@ -1,44 +1,56 @@
-# Accueil.py - VÉRIFIEZ CE FICHIER
-# modif test git
-
 import streamlit as st
+import os
 
-# DÉFINITION INITIALE DES MODALITÉS POUR L'ADMINISTRATION
-MODALITES_INITIALES = {
-    # 1. L'ENTRETIEN
-    "Mode d'entretien": ["RDV", "Sans RDV", "Téléphonique", "Courrier", "Mail", "Autre", "Non renseigné"],
-    "Durée": ["- 15 min.", "15 à 30 min", "30 à 45 min", "45 à 60 min", "+ de 60 min"],
-    
-    # 2. L'USAGER (Variables modifiables)
-    "Sexe": ["Homme", "Femme", "Couple", "Professionnel"],
-    "Age": ["-18 ans", "18-25 ans", "26-40 ans", "41-60 ans", "+ 60 ans"],
-    "Vient pour": ["Soi", "Conjoint", "Parent", "Enfant", "Personne morale", "Autre"],
-    "Situtation familiale": ["Célibataire", "Concubin", "Pacsé", "Marié", "Séparé/divorcé", "Veuf/ve", "Non renseigné"],
-    "Enfant(s) à charge": ["Sans enf. à charge", "Avec enf. en garde alternée", "Avec enf. en garde principale", "Avec enf. en droit de visite/hbgt", "Parent isolé", "Séparés sous le même toit", "Non renseigné"],
-    "Profession": ["Scolaire/étudiant/formation", "Pêcheur/agriculteur", "Chef d'entreprise", "Libéral", "Secteur santé/social", "Militaire", "Employé", "Ouvrier", "Cadre", "Retraité", "En recherche d'emploi", "Sans profession", "Non renseigné"],
-    "Revenus": ["Salaire", "Revenus pro.", "Retraite/réversion", "Allocations chômage", "RSA", "AAH/invalidité", "ASS", "Bourse d'études.", "Sans revenu"],
-} # <--- Assurez-vous que cette accolade fermante est présente et correcte.
-
-# Initialisation de la session state pour stocker toutes les modalités
-if 'all_modalities' not in st.session_state:
-    st.session_state.all_modalities = MODALITES_INITIALES
-    
 # --- Configuration de la Page d'Accueil ---
-
 st.set_page_config(
-    page_title="Accueil | Mon Application Statistique",
+    page_title="Accueil | Application de Gestion",
     layout="wide",
 )
 
-st.title("🏛️ Application de Gestion des Données d'Accès au Droit")
+# Initialisation de la session (si nécessaire pour d'autres parties)
+if 'all_modalities' not in st.session_state:
+    st.session_state.all_modalities = {}
+
+# --- EN-TÊTE AVEC LOGO ---
+col_logo, col_titre = st.columns([1, 4])
+
+with col_logo:
+    # REMPLACE 'logo.png' PAR LE NOM DE TON FICHIER IMAGE
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=150)
+    else:
+        # Placeholder si l'image n'est pas encore là
+        st.info("Logo ici")
+
+with col_titre:
+    st.title("Application de Gestion des Données d'Accès au Droit")
+
 st.markdown("---")
 
+# --- PRÉSENTATION DE LA MAISON DU DROIT ---
+st.header("Bienvenue à la Maison du Droit")
+
 st.markdown("""
-### 🧭 Navigation
+La **Maison du Droit et de la Justice** est un lieu d'accueil, d'écoute et d'information gratuit et confidentiel. 
+Elle a pour vocation de rapprocher la justice des citoyens et de faciliter l'accès au droit pour tous.
 
-Utilisez la barre latérale à gauche pour naviguer entre les différentes fonctions :
+Nos missions principales sont :
+* **L'accès au droit** : Informer les citoyens sur leurs droits et obligations et les orienter vers les interlocuteurs compétents.
+* **La résolution amiable des conflits** : Proposer des alternatives aux poursuites judiciaires (médiation, conciliation).
+* **L'aide aux victimes** : Apporter un soutien juridique et psychologique.
 
-* **1 Formulaire Saisie** : Enregistrer les données d'un nouvel entretien.
-* **2 Analyse Graphique** : Visualiser les tendances, appliquer des filtres complexes et générer des graphiques personnalisés.
-* **3 Administration** : Ajouter de nouvelles variables (colonnes) ou de nouvelles modalités aux variables existantes.
+Cette application est l'outil central permettant à notre équipe de suivre l'activité, d'enregistrer les entretiens et d'analyser les statistiques de fréquentation afin de mieux répondre aux besoins des usagers.
+""")
+
+st.markdown("---")
+
+# --- NAVIGATION ---
+st.subheader("Navigation")
+
+st.markdown("""
+Utilisez la barre latérale à gauche pour accéder aux fonctionnalités :
+
+* **1 Formulaire Saisie** : Enregistrer un nouvel entretien et les détails du dossier usager.
+* **2 Analyse Graphique** : Consulter les statistiques et visualiser les données d'activité.
+* **3 Administration** : Gérer les paramètres de l'application.
 """)
