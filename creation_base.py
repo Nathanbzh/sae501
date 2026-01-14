@@ -11,7 +11,7 @@ DB_NAME = "DB_MaisonDuDroit"
 CSV_PATH = r"H:/Projetdroit/tentative.csv"
 
 # Chemin où exporter les fichiers CSV générés
-OUTPUT_DIR = r"H:\\SAE501-2\\projet\\sae501\\metadata" 
+OUTPUT_DIR = r"metadata" 
 
 # --- LE SCRIPT SQL CORRIGÉ (Avec TRIM() pour éviter l'erreur de longueur) ---
 SQL_DDL = """
