@@ -53,8 +53,9 @@ jobs:
 
       # 5. Analyse SonarQube Cloud
       # Cette étape lit le fichier coverage.xml généré juste avant
+      # Utilisation du SHA spécifique pour plus de sécurité (correspond à v3.1.0)
       - name: SonarQube Cloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarcloud-github-action@383f7e52ea3ab09544140ca11b873f6db99d3068
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Fourni automatiquement par GitHub
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # À AJOUTER dans les secrets de votre repo GitHub
