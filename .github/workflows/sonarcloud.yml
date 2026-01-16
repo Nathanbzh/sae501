@@ -1,0 +1,60 @@
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+permissions:
+  pull-requests: read # Nécessaire pour que SonarCloud puisse commenter les PR
+
+jobs:
+  Analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Récupération du code source
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # CRITIQUE : Désactive le clonage superficiel pour une analyse pertinente
+
+      # 2. Installation de Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10" 
+          cache: 'pip' # Active le cache pour accélérer les futurs builds
+
+      # 3. Installation des dépendances
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # On s'assure que les outils de couverture sont bien installés
+          pip install pytest pytest-cov
+
+      # 4. Exécution des tests et génération du rapport de couverture
+      # C'est ici que pytest-cov génère le fichier 'coverage.xml'
+      - name: Run Tests with Coverage
+        env:
+          # Variables d'environnement pour les tests (mock ou base de test)
+          # Adaptez ces valeurs si vos tests nécessitent une vraie BDD
+          DB_HOST: "localhost" 
+          DB_USER: "test_user"
+          DB_PASS: "test_pass"
+          DB_NAME: "test_db"
+        run: |
+          # --cov=. : Analyse la couverture du dossier courant
+          # --cov-report=xml : Génère le rapport au format XML attendu par SonarCloud
+          # --cov-report=term : Affiche aussi le résumé dans la console GitHub
+          pytest --cov=. --cov-report=xml --cov-report=term
+
+      # 5. Analyse SonarQube Cloud
+      # Cette étape lit le fichier coverage.xml généré juste avant
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Fourni automatiquement par GitHub
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # À AJOUTER dans les secrets de votre repo GitHub
