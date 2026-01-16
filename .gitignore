@@ -19,3 +19,4 @@ __pycache__
 .venv
 test_saisie.py
 logo.png
+.coverage
