@@ -11,7 +11,7 @@ def test_integration_formulaire_succes():
     """
     Test Cas Passant : Remplissage complet et sauvegarde du formulaire.
     """
-    at = AppTest.from_file("pages/1_Formulaire_Saisie.py")
+    at = AppTest.from_file("Accueil.py")
     at.run()
 
     # 1. Vérification que les selectbox existent
@@ -66,7 +66,7 @@ def test_validation_champs_manquants():
     """
     Test Cas Erreur : On ne remplit rien.
     """
-    at = AppTest.from_file("pages/1_Formulaire_Saisie.py")
+    at = AppTest.from_file("Accueil.py")
     at.run()
 
     # 1. On vide le champ obligatoire
