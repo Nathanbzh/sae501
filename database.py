@@ -8,36 +8,31 @@ from sqlalchemy import create_engine
 import os
 from dotenv import load_dotenv
 
-# Charge les variables d'environnement (pour le mode local)
+# Charge les variables d'environnement
 load_dotenv()
 
 # --- CONFIGURATION LOCALE SÉCURISÉE ---
-# On utilise os.getenv pour récupérer les valeurs du fichier .env
-# Les valeurs par défaut (ex: "localhost") ne sont là qu'en cas d'oubli du .env
 LOCAL_DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
-    "database": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASS"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
+    "database": os.getenv("DB_NAME", "postgres"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASS", "password"),
     "options": "-c client_encoding=WIN1252"
 }
 
 def get_db_url():
     """Génère l'URL de connexion pour SQLAlchemy"""
     try:
-        # 1. Essai Configuration Streamlit Cloud (secrets.toml)
         creds = st.secrets["postgres"]
         return f"postgresql+psycopg2://{creds['user']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['database']}"
     except (FileNotFoundError, KeyError, AttributeError):
-        # 2. Fallback Configuration Locale (.env)
         c = LOCAL_DB_CONFIG
         return f"postgresql+psycopg2://{c['user']}:{c['password']}@{c['host']}:{c['port']}/{c['database']}"
 
 def get_db_connection():
-    """Connexion Psycopg2 classique (pour INSERT/UPDATE et lecture métadonnées)"""
+    """Connexion Psycopg2 classique"""
     try:
-        # 1. Essai Configuration Streamlit Cloud
         return psycopg2.connect(
             host=st.secrets["postgres"]["host"],
             port=st.secrets["postgres"]["port"],
@@ -47,31 +42,33 @@ def get_db_connection():
             options="-c client_encoding=WIN1252"
         )
     except (FileNotFoundError, KeyError, AttributeError):
-        # 2. Fallback Configuration Locale
-        try:
-            return psycopg2.connect(**LOCAL_DB_CONFIG)
-        except Exception as e:
-            st.error(f"❌ Erreur de connexion (Locale) : {e}")
-            raise e
+        return psycopg2.connect(**LOCAL_DB_CONFIG)
 
 def get_pandas_data(query, params=None):
-    """
-    Exécute une requête SQL et retourne un DataFrame via SQLAlchemy
-    pour éviter les warnings Pandas.
-    """
     db_url = get_db_url()
     engine = create_engine(db_url)
     try:
         with engine.connect() as conn:
             return pd.read_sql(query, conn, params=params)
     except Exception as e:
-        # En prod, on évite d'afficher l'erreur brute à l'utilisateur, mais utile pour debug
         print(f"Erreur SQL (Pandas) : {e}")
         return pd.DataFrame()
     finally:
         engine.dispose()
 
-# --- FONCTIONS ESSENTIELLES (PAGE 1) ---
+# --- LECTURE CONFIG FORMULAIRE ---
+
+def get_rubriques():
+    """Récupère la liste des sections (Rubriques) disponibles"""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pos, lib FROM RUBRIQUE ORDER BY pos")
+            return cur.fetchall()
+    except Exception:
+        return []
+    finally:
+        if conn: conn.close()
 
 def get_form_config():
     """Récupère la config pour la table principale ENTRETIEN"""
@@ -79,6 +76,7 @@ def get_form_config():
     config = []
     try:
         with conn.cursor() as cur:
+            # On récupère les variables actives
             query_vars = """
                 SELECT v.pos, v.lib, v.type_v, v.commentaire, r.lib as rubrique_lib
                 FROM VARIABLE v
@@ -92,6 +90,7 @@ def get_form_config():
             for row in vars_rows:
                 pos, lib_col, type_v, label_ui, rubrique = row
                 field_info = {
+                    "id": pos,
                     "column_name": lib_col,
                     "label": label_ui,
                     "type": type_v,
@@ -102,10 +101,6 @@ def get_form_config():
                     cur.execute("SELECT code, lib_m FROM MODALITE WHERE tab='ENTRETIEN' AND pos=%s ORDER BY pos_m", (pos,))
                     for code, lib in cur.fetchall():
                         field_info["options"][lib] = code
-                elif type_v == 'CHAINE':
-                    cur.execute("SELECT lib FROM VALEURS_C WHERE tab='ENTRETIEN' AND pos=%s ORDER BY lib", (pos,))
-                    for val in cur.fetchall():
-                        field_info["options"][val[0]] = val[0] 
                 config.append(field_info)
         return config
     except Exception as e:
@@ -115,7 +110,6 @@ def get_form_config():
         if conn: conn.close()
 
 def get_options_for_table(table_name, column_pos=3):
-    """Récupère les modalités pour DEMANDE et SOLUTION"""
     conn = get_db_connection()
     options = {}
     try:
@@ -132,8 +126,9 @@ def get_options_for_table(table_name, column_pos=3):
     finally:
         if conn: conn.close()
 
+# --- ECRITURE (SAISIE) ---
+
 def save_entretien_complet(data_entretien, liste_demandes, liste_solutions):
-    """Sauvegarde le dossier complet"""
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -158,15 +153,96 @@ def save_entretien_complet(data_entretien, liste_demandes, liste_solutions):
             conn.commit()
             return new_num
     except Exception as e:
-        conn.rollback()
+        if conn: conn.rollback()
         raise e
     finally:
         if conn: conn.close()
 
-# --- FONCTIONS POUR ANALYSE ET EXPORT ---
+# --- ADMINISTRATION (CORRIGÉ) ---
+
+def add_new_variable_db(nom_colonne, label_ui, type_var, id_rubrique, modalites_initiales=None):
+    """
+    Crée une variable. 
+    CORRECTIONS CUMULÉES & FINALES : 
+    1. mois_debut_validite = YYMM (ex: 2601).
+    2. mois_fin_validite = 9999.
+    3. est_contrainte = FALSE (pour satisfaire le NOT NULL).
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            safe_col_name = "".join(c for c in nom_colonne if c.isalnum() or c == '_').upper()
+            if not safe_col_name:
+                raise ValueError("Nom de colonne invalide")
+
+            # Vérifie si la colonne existe déjà
+            cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'entretien' AND column_name = %s", (safe_col_name.lower(),))
+            if cur.fetchone():
+                raise ValueError(f"La colonne {safe_col_name} existe déjà.")
+
+            # 1. ALTER TABLE
+            sql_type = "VARCHAR(255)" if type_var in ['CHAINE', 'MOD'] else "INTEGER"
+            cur.execute(f"ALTER TABLE ENTRETIEN ADD COLUMN {safe_col_name} {sql_type}")
+
+            # 2. INSERT INTO VARIABLE
+            cur.execute("SELECT COALESCE(MAX(pos), 0) + 1 FROM VARIABLE WHERE tab='ENTRETIEN'")
+            new_pos = cur.fetchone()[0]
+            
+            cur.execute("SELECT COALESCE(MAX(pos_r), 0) + 1 FROM VARIABLE WHERE tab='ENTRETIEN' AND rubrique=%s", (id_rubrique,))
+            new_pos_r = cur.fetchone()[0]
+
+            # --- CORRECTION DATES & CONTRAINTES ---
+            today = datetime.date.today()
+            current_month_int = int(today.strftime('%y%m')) # Ex: 2601
+            end_month_infinite = 9999 
+            est_contrainte_val = False # Valeur par défaut : pas de contrainte
+
+            # Ajout de la colonne 'est_contrainte' dans l'INSERT
+            cur.execute("""
+                INSERT INTO VARIABLE (tab, pos, lib, type_v, rubrique, pos_r, commentaire, mois_debut_validite, mois_fin_validite, est_contrainte)
+                VALUES ('ENTRETIEN', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (new_pos, safe_col_name, type_var, id_rubrique, new_pos_r, label_ui, current_month_int, end_month_infinite, est_contrainte_val))
+
+            # 3. INSERT INTO MODALITE
+            if type_var == 'MOD' and modalites_initiales:
+                for i, mod_label in enumerate(modalites_initiales):
+                    code_mod = str(i + 1)
+                    cur.execute("""
+                        INSERT INTO MODALITE (tab, pos, code, lib_m, pos_m)
+                        VALUES ('ENTRETIEN', %s, %s, %s, %s)
+                    """, (new_pos, code_mod, mod_label, i+1))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        if conn: conn.rollback()
+        raise e
+    finally:
+        if conn: conn.close()
+
+def add_new_modality_db(variable_pos, new_label):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COALESCE(MAX(pos_m), 0) + 1 FROM MODALITE WHERE tab='ENTRETIEN' AND pos=%s", (variable_pos,))
+            new_pos_m = cur.fetchone()[0]
+            new_code = str(new_pos_m)
+
+            cur.execute("""
+                INSERT INTO MODALITE (tab, pos, code, lib_m, pos_m)
+                VALUES ('ENTRETIEN', %s, %s, %s, %s)
+            """, (variable_pos, new_code, new_label, new_pos_m))
+            
+            conn.commit()
+    except Exception as e:
+        if conn: conn.rollback()
+        raise e
+    finally:
+        if conn: conn.close()
+
+# --- ANALYSE ET EXPORT ---
 
 def get_translation_dictionary():
-    """Récupère traductions pour ENTRETIEN (Via Psycopg2)"""
     conn = get_db_connection()
     transco = {}
     try:
@@ -182,24 +258,12 @@ def get_translation_dictionary():
                         try: key_val = int(code)
                         except ValueError: key_val = code
                         transco[col_key][key_val] = lib
-                elif type_v == 'CHAINE':
-                    cur.execute("SELECT lib FROM VALEURS_C WHERE tab='ENTRETIEN' AND pos=%s", (pos,))
-                    for val in cur.fetchall():
-                        transco[col_key][val[0]] = val[0]
+                        transco[col_key][str(key_val)] = lib
         return transco
-    except Exception as e:
-        st.error(f"Erreur dictionnaire traduction : {e}")
+    except Exception:
         return {}
     finally:
         if conn: conn.close()
-
-def get_available_months():
-    """Utilise SQLAlchemy pour éviter les warnings Pandas"""
-    query = "SELECT DISTINCT TO_CHAR(date_ent, 'YYYY-MM') as mois FROM ENTRETIEN ORDER BY mois DESC"
-    df = get_pandas_data(query)
-    if not df.empty:
-        return df['mois'].tolist()
-    return []
 
 def get_recent_dossiers_list(limit=50):
     conn = get_db_connection()
@@ -213,12 +277,7 @@ def get_recent_dossiers_list(limit=50):
         if conn: conn.close()
 
 def get_dossier_complete_data(num_dossier):
-    """Utilise SQLAlchemy pour éviter les warnings Pandas"""
-    # 1. ENTRETIEN
     df_ent = get_pandas_data("SELECT * FROM ENTRETIEN WHERE num = %(num)s", params={"num": num_dossier})
-    # 2. DEMANDE
     df_dem = get_pandas_data("SELECT * FROM DEMANDE WHERE num = %(num)s ORDER BY pos", params={"num": num_dossier})
-    # 3. SOLUTION
     df_sol = get_pandas_data("SELECT * FROM SOLUTION WHERE num = %(num)s ORDER BY pos", params={"num": num_dossier})
-    
     return df_ent, df_dem, df_sol
