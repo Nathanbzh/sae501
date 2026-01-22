@@ -15,12 +15,10 @@ DB_NAME = os.getenv("DB_NAME")
 
 # Utilisation d'un chemin relatif pour la portabilité
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Si le fichier CSV est dans le dossier 'data' du projet
 CSV_PATH = os.path.join(BASE_DIR, "data", "tentative.csv") 
 OUTPUT_DIR = os.path.join(BASE_DIR, "metadata")
 
 # --- LE SCRIPT SQL ---
-# (Le reste du contenu SQL reste identique à votre version)
 SQL_DDL = """
 -- 1. NETTOYAGE PREALABLE
 DROP TABLE IF EXISTS SOLUTION CASCADE;

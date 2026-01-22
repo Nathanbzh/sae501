@@ -51,11 +51,9 @@ MAPPING_ENTRETIEN = {
 }
 
 # ⚠️ LISTE DES COLONNES EXCEL CONTENANT LES DEMANDES
-# Ajustez ces noms selon vos vrais entêtes Excel (ex: "Demande 1", "Nature", etc.)
 COLS_DEMANDES = ["Dem.1", "Dem.2", "Dem.3"] 
 
 # ⚠️ LISTE DES COLONNES EXCEL CONTENANT LES SOLUTIONS
-# Ajustez ces noms selon vos vrais entêtes Excel
 COLS_SOLUTIONS = ["Sol.1", "Sol.2", "Sol.3"]
 
 

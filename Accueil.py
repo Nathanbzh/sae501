@@ -57,8 +57,6 @@ def build_home():
     # --- ACCÈS RAPIDE AUX AUTRES PAGES (ADMIN / STATS) ---
     with st.expander("🧭 Accès Rapide aux autres modules", expanded=False):
         c1, c2, c3 = st.columns(3)
-        # Utilisation sécurisée de page_link pour éviter les crashs dans les tests AppTest
-        # (AppTest ne gère pas toujours bien le contexte de navigation multipages)
         try:
             with c1:
                 st.page_link("pages/2_Analyse_Graphique.py", label="📊 Voir les Statistiques", icon="📈", use_container_width=True)
@@ -169,10 +167,8 @@ def build_home():
 
     if submitted:
         # Validation minimale
-        # On peut adapter les règles selon vos besoins (ex: Mode obligatoire)
         is_valid = True
-        
-        # Exemple de règle : Si "Mode" est une colonne configurée et qu'elle est vide
+
         if "MODE" in user_inputs and user_inputs["MODE"] is None:
              st.warning("⚠️ Le champ 'Mode de l'entretien' est requis.")
              is_valid = False
@@ -190,7 +186,6 @@ def build_home():
                 )
                 
                 st.success(f"✅ Dossier complet n° **{new_num}** enregistré avec succès !")
-                # st.balloons() # Désactivé pour rester sobre (et ne pas gêner les tests)
                 
                 # Bouton pour recharger la page et vider le formulaire
                 if st.button("Saisir un nouveau dossier"):

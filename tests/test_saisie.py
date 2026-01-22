@@ -54,8 +54,6 @@ def test_integration_formulaire_succes():
     
     assert found_validation, f"Message de validation introuvable. Messages reçus : {all_success_messages}"
 
-    # 🛑 SECTION DE NETTOYAGE SUPPRIMÉE : Les données restent en base 🛑
-
 def test_validation_champs_manquants():
     """
     Test Cas Erreur : On ne remplit rien.

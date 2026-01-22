@@ -156,8 +156,6 @@ def test_03_formulaire_saisie_et_enregistrement(driver):
         if "succès" in alert.text.lower():
             print("✅ Dossier enregistré !")
         elif "warning" in alert.text.lower() or "erreur" in alert.text.lower():
-            # Si c'est juste un warning "champs manquants", on considère le test technique réussi (l'app a répondu)
-            # mais on le signale
             print(f"⚠️ Validation métier échouée (Champs manquants ?) : {alert.text}")
         else:
             print("✅ Action effectuée (Message inconnu).")

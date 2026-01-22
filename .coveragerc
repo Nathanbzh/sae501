@@ -19,9 +19,6 @@ omit =
     creation_base.py
     exportation_base.py
     verif_base.py
-    
-    # --- 4. Page d'accueil (0%) ---
-    Accueil.py
 
 [report]
 # Affiche les numéros de lignes non testées dans le terminal
