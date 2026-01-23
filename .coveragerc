@@ -1,42 +1,22 @@
 [run]
-# Définit la racine du projet comme source
+# Inclure la racine et le dossier pages
 source = .
-
-# Liste des fichiers et dossiers à IGNORER dans le calcul
 omit =
-    # --- 1. Tests et Configuration ---
+    # On exclut les tests du calcul de couverture
     tests/*
+    # On exclut les fichiers de configuration et les environnements virtuels
     conftest.py
-    setup.py
-    
-    # --- 2. Environnements virtuels (au cas où) ---
     venv/*
     .venv/*
-    env/*
-    
-    # --- 3. Scripts Utilitaires (Tes fichiers à 0%) ---
-    alimentation_base.py
+    */__pycache__/*
+    # On exclut les scripts de maintenance si on ne veut pas les tester
     creation_base.py
+    alimentation_base.py
     exportation_base.py
     verif_base.py
 
 [report]
-# Affiche les numéros de lignes non testées dans le terminal
+# Affiche les lignes manquantes
 show_missing = True
-
-# Regex pour ignorer certaines lignes spécifiques qui ne comptent pas vraiment
-exclude_lines =
-    # Permet d'ignorer manuellement une ligne avec le commentaire # pragma: no cover
-    pragma: no cover
-    
-    # Ignore les fonctions de debug d'affichage
-    def __repr__
-    
-    # Ignore le bloc de lancement standard des scripts
-    if __name__ == .__main__.:
-    
-    # Ignore les erreurs d'implémentation abstraites
-    raise NotImplementedError
-    
-    # Ignore les imports défensifs
-    except ImportError
+# Ignore les erreurs si un fichier est introuvable
+ignore_errors = True
